@@ -29,8 +29,21 @@ ADMIN_KEY="รหัสใหม่" node server.js
 
 ## ข้อมูลถูกเก็บที่ไหน
 
-`data/registrations.json` (สร้างอัตโนมัติเมื่อรันครั้งแรก) — เก็บทุกครั้งที่มีคนลงทะเบียน
-ข้อมูลจึงอยู่แม้ปิดเซิร์ฟเวอร์แล้วเปิดใหม่
+ระบบเลือกที่เก็บข้อมูลอัตโนมัติตาม environment:
+
+- **มี `DATABASE_URL`** (เช่นบน Railway ที่ต่อ PostgreSQL) → เก็บใน **PostgreSQL**
+  - สร้างตาราง `registrations` ให้อัตโนมัติเมื่อรันครั้งแรก
+  - กันอีเมล/เบอร์ซ้ำด้วย unique index ระดับฐานข้อมูล
+- **ไม่มี `DATABASE_URL`** → เก็บใน `data/registrations.json` (ไฟล์ในเครื่อง)
+  - **สำหรับทดสอบในเครื่องเท่านั้น** — บน Railway ไฟล์จะหายเมื่อ deploy/restart ใหม่ จึงต้องต่อ PostgreSQL
+
+### การ deploy บน Railway (สรุป)
+
+1. Deploy service จาก repo นี้ (มี `Dockerfile` ให้แล้ว)
+2. เพิ่ม **PostgreSQL** ในโปรเจกต์เดียวกัน (New → Database → PostgreSQL)
+3. ที่ service ของแอป เพิ่มตัวแปร `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`
+4. (แนะนำ) ตั้ง `ADMIN_KEY` เป็นรหัสผ่านหลังบ้านที่ต้องการ
+5. Settings → Networking → Generate Domain เพื่อเปิดใช้งาน
 
 ## ฟีเจอร์
 
