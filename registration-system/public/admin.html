@@ -76,7 +76,7 @@
       <div class="table-scroll">
         <table>
           <thead>
-            <tr><th>#</th><th>ชื่อ</th><th>อีเมล</th><th>เบอร์โทร</th><th>วันเกิด</th><th>เวลาลงทะเบียน</th><th></th></tr>
+            <tr><th>#</th><th>ชื่อ</th><th>อีเมล</th><th>เบอร์โทร</th><th>เพศ</th><th>วันเกิด</th><th>เวลาลงทะเบียน</th><th></th></tr>
           </thead>
           <tbody id="tbody"></tbody>
         </table>
@@ -112,7 +112,7 @@
   function render() {
     const q = searchEl.value.trim().toLowerCase();
     const list = q
-      ? records.filter(r => (r.name + ' ' + r.email + ' ' + r.phone + ' ' + (r.birthdate || '')).toLowerCase().includes(q))
+      ? records.filter(r => (r.name + ' ' + r.email + ' ' + r.phone + ' ' + (r.gender || '') + ' ' + (r.birthdate || '')).toLowerCase().includes(q))
       : records;
     countEl.textContent = records.length;
     tbody.innerHTML = '';
@@ -121,7 +121,7 @@
     list.forEach((r, i) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${i + 1}</td><td>${esc(r.name)}</td><td>${esc(r.email)}</td>
-        <td>${esc(r.phone)}</td><td>${esc(r.birthdate || '-')}</td><td>${esc(fmtTime(r.createdAt))}</td>
+        <td>${esc(r.phone)}</td><td>${esc(r.gender || '-')}</td><td>${esc(r.birthdate || '-')}</td><td>${esc(fmtTime(r.createdAt))}</td>
         <td><button class="btn-del" data-id="${esc(r.id)}">ลบ</button></td>`;
       tbody.appendChild(tr);
     });

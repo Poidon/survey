@@ -30,6 +30,8 @@ function validBirthdate(v) {
   return true;
 }
 const normPhone = s => String(s).replace(/[\s-]/g, '');
+const GENDERS = ['ชาย', 'หญิง', 'อื่นๆ', 'ไม่ระบุ'];
+function validGender(v) { return GENDERS.includes(v); }
 
 // ---------- ชั้นเก็บข้อมูล: PostgreSQL ----------
 function createPgStore(url) {
@@ -41,7 +43,8 @@ function createPgStore(url) {
   });
 
   const mapRow = r => ({
-    id: r.id, name: r.name, email: r.email, phone: r.phone, birthdate: r.birthdate,
+    id: r.id, name: r.name, email: r.email, phone: r.phone,
+    gender: r.gender, birthdate: r.birthdate,
     createdAt: (r.created_at instanceof Date) ? r.created_at.toISOString() : r.created_at,
   });
 
@@ -54,9 +57,12 @@ function createPgStore(url) {
           email      TEXT NOT NULL,
           phone      TEXT NOT NULL,
           phone_norm TEXT NOT NULL,
+          gender     TEXT,
           birthdate  TEXT NOT NULL,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )`);
+      // เผื่อตารางเก่ายังไม่มีคอลัมน์ gender (เพิ่มภายหลัง)
+      await pool.query(`ALTER TABLE registrations ADD COLUMN IF NOT EXISTS gender TEXT`);
       // กันซ้ำระดับฐานข้อมูล (กันกรณีลงทะเบียนพร้อมกัน)
       await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_reg_email
         ON registrations (lower(email))`);
@@ -65,7 +71,7 @@ function createPgStore(url) {
     },
     async all() {
       const { rows } = await pool.query(
-        `SELECT id, name, email, phone, birthdate, created_at
+        `SELECT id, name, email, phone, gender, birthdate, created_at
            FROM registrations ORDER BY created_at ASC`);
       return rows.map(mapRow);
     },
@@ -81,9 +87,9 @@ function createPgStore(url) {
     },
     async insert(rec) {
       await pool.query(
-        `INSERT INTO registrations (id, name, email, phone, phone_norm, birthdate, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [rec.id, rec.name, rec.email, rec.phone, normPhone(rec.phone), rec.birthdate, rec.createdAt]);
+        `INSERT INTO registrations (id, name, email, phone, phone_norm, gender, birthdate, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [rec.id, rec.name, rec.email, rec.phone, normPhone(rec.phone), rec.gender, rec.birthdate, rec.createdAt]);
     },
     async remove(id) {
       await pool.query(`DELETE FROM registrations WHERE id=$1`, [id]);
@@ -157,11 +163,13 @@ const server = http.createServer(async (req, res) => {
       const name = String(data.name || '').trim();
       const email = String(data.email || '').trim();
       const phone = String(data.phone || '').trim();
+      const gender = String(data.gender || '').trim();
       const birthdate = String(data.birthdate || '').trim();
 
       if (!name) return sendJson(res, 400, { ok: false, error: 'กรุณากรอกชื่อ' });
       if (!validEmail(email)) return sendJson(res, 400, { ok: false, error: 'อีเมลไม่ถูกต้อง' });
       if (!validPhone(phone)) return sendJson(res, 400, { ok: false, error: 'เบอร์โทรไม่ถูกต้อง (9-10 หลัก)' });
+      if (!validGender(gender)) return sendJson(res, 400, { ok: false, error: 'กรุณาเลือกเพศ' });
       if (!validBirthdate(birthdate)) return sendJson(res, 400, { ok: false, error: 'วันเกิดไม่ถูกต้อง' });
 
       if (await store.emailExists(email)) return sendJson(res, 409, { ok: false, error: 'อีเมลนี้ลงทะเบียนไปแล้ว' });
@@ -169,7 +177,7 @@ const server = http.createServer(async (req, res) => {
 
       const record = {
         id: Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
-        name, email, phone, birthdate,
+        name, email, phone, gender, birthdate,
         createdAt: new Date().toISOString(),
       };
       try {
@@ -211,9 +219,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/export.csv') {
       if (!isAuthed(req, url)) { res.writeHead(401); res.end('unauthorized'); return; }
       const list = await store.all();
-      const header = ['ลำดับ', 'ชื่อ', 'อีเมล', 'เบอร์โทร', 'วันเกิด', 'เวลาลงทะเบียน'];
+      const header = ['ลำดับ', 'ชื่อ', 'อีเมล', 'เบอร์โทร', 'เพศ', 'วันเกิด', 'เวลาลงทะเบียน'];
       const rows = list.map((r, i) => [
-        i + 1, r.name, r.email, r.phone, r.birthdate || '',
+        i + 1, r.name, r.email, r.phone, r.gender || '', r.birthdate || '',
         new Date(r.createdAt).toLocaleString('th-TH'),
       ]);
       const csv = [header, ...rows].map(row => row.map(csvEscape).join(',')).join('\r\n');

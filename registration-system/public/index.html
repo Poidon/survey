@@ -18,10 +18,10 @@
   .subtitle { color:var(--muted); margin:0 0 22px; font-size:14px; }
   label { display:block; font-weight:600; margin-bottom:6px; font-size:14px; }
   .req { color:var(--error); }
-  input { width:100%; padding:11px 12px; font-size:15px; border:1px solid var(--border);
-    border-radius:8px; outline:none; font-family:inherit; transition:border-color .15s; }
-  input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
-  input.invalid { border-color:var(--error); }
+  input, select { width:100%; padding:11px 12px; font-size:15px; border:1px solid var(--border);
+    border-radius:8px; outline:none; font-family:inherit; transition:border-color .15s; background:#fff; }
+  input:focus, select:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+  input.invalid, select.invalid { border-color:var(--error); }
   .field { margin-bottom:18px; }
   .err { color:var(--error); font-size:13px; margin-top:5px; min-height:0; }
   button { font-family:inherit; cursor:pointer; border:none; border-radius:8px; font-size:15px;
@@ -57,6 +57,17 @@
         <label for="phone">เบอร์โทร <span class="req">*</span></label>
         <input type="tel" id="phone" name="phone" placeholder="08XXXXXXXX" autocomplete="tel">
         <div class="err" id="err-phone"></div>
+      </div>
+      <div class="field">
+        <label for="gender">เพศ <span class="req">*</span></label>
+        <select id="gender" name="gender">
+          <option value="">-- เลือกเพศ --</option>
+          <option value="ชาย">ชาย</option>
+          <option value="หญิง">หญิง</option>
+          <option value="อื่นๆ">อื่นๆ</option>
+          <option value="ไม่ระบุ">ไม่ระบุ</option>
+        </select>
+        <div class="err" id="err-gender"></div>
       </div>
       <div class="field">
         <label for="birthdate">วันเกิด <span class="req">*</span></label>
@@ -116,6 +127,7 @@
     const name = form.name.value.trim();
     const email = form.email.value.trim();
     const phone = form.phone.value.trim();
+    const gender = form.gender.value;
     const birthdate = form.birthdate.value;
 
     const today = new Date().toISOString().slice(0, 10);
@@ -123,6 +135,7 @@
     setErr('name', name ? '' : (bad = true, 'กรุณากรอกชื่อ'));
     setErr('email', validEmail(email) ? '' : (bad = true, 'อีเมลไม่ถูกต้อง'));
     setErr('phone', validPhone(phone) ? '' : (bad = true, 'เบอร์โทรต้องมี 9-10 หลัก'));
+    setErr('gender', gender ? '' : (bad = true, 'กรุณาเลือกเพศ'));
     if (!birthdate) setErr('birthdate', (bad = true, 'กรุณาเลือกวันเกิด'));
     else if (birthdate > today) setErr('birthdate', (bad = true, 'วันเกิดต้องไม่เกินวันนี้'));
     else setErr('birthdate', '');
@@ -133,7 +146,7 @@
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, birthdate }),
+        body: JSON.stringify({ name, email, phone, gender, birthdate }),
       });
       const out = await res.json();
       if (out.ok) {
