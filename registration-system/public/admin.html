@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>หลังบ้าน - รายชื่อผู้ลงทะเบียน</title>
+<style>
+  :root {
+    --bg:#f4f5f7; --card:#fff; --primary:#2563eb; --primary-dark:#1d4ed8;
+    --text:#1f2937; --muted:#6b7280; --border:#e5e7eb; --error:#dc2626;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Segoe UI","Sarabun",Tahoma,sans-serif; background:var(--bg);
+    color:var(--text); margin:0; padding:28px 16px; line-height:1.5; }
+  .wrap { max-width:920px; margin:0 auto; }
+  .card { background:var(--card); border-radius:14px; box-shadow:0 2px 12px rgba(0,0,0,.08);
+    padding:24px; margin-bottom:20px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .muted { color:var(--muted); font-size:14px; }
+  input { padding:11px 12px; font-size:15px; border:1px solid var(--border); border-radius:8px;
+    outline:none; font-family:inherit; width:100%; }
+  input:focus { border-color:var(--primary); }
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:8px; font-size:14px;
+    font-weight:600; padding:10px 16px; }
+  .btn-primary { background:var(--primary); color:#fff; }
+  .btn-primary:hover { background:var(--primary-dark); }
+  .btn-secondary { background:#eef2ff; color:var(--primary-dark); }
+  .btn-secondary:hover { background:#e0e7ff; }
+  .btn-del { background:transparent; color:var(--error); padding:6px 10px; font-size:13px; }
+  .btn-del:hover { background:#fef2f2; }
+  .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+  .toolbar .spacer { flex:1; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th,td { text-align:left; padding:10px 10px; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); font-weight:600; white-space:nowrap; }
+  td { word-break:break-word; }
+  .table-scroll { overflow-x:auto; }
+  .empty { text-align:center; color:var(--muted); padding:28px 0; }
+  .stat { font-size:28px; font-weight:700; color:var(--primary); }
+  .login { max-width:360px; margin:60px auto; }
+  .err { color:var(--error); font-size:13px; margin-top:8px; min-height:18px; }
+  .search { max-width:280px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- หน้าเข้าสู่ระบบ -->
+  <div id="loginView" class="card login">
+    <h1>เข้าสู่ระบบหลังบ้าน</h1>
+    <p class="muted">กรุณากรอกรหัสผ่านเพื่อดูรายชื่อผู้ลงทะเบียน</p>
+    <input type="password" id="keyInput" placeholder="รหัสผ่าน" style="margin:12px 0 0;">
+    <div class="err" id="loginErr"></div>
+    <button class="btn-primary" id="loginBtn" style="width:100%; margin-top:8px;">เข้าสู่ระบบ</button>
+    <div style="text-align:center; margin-top:16px;">
+      <a href="/" style="color:var(--muted); font-size:14px;">← กลับไปหน้าลงทะเบียน</a>
+    </div>
+  </div>
+
+  <!-- หน้าหลังบ้าน -->
+  <div id="adminView" class="hidden">
+    <div class="card">
+      <h1>รายชื่อผู้ลงทะเบียน</h1>
+      <p class="muted">ทั้งหมด <span class="stat" id="count">0</span> คน</p>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <input class="search" id="search" placeholder="ค้นหาชื่อ / อีเมล / เบอร์...">
+        <div class="spacer"></div>
+        <button class="btn-secondary" id="refreshBtn">รีเฟรช</button>
+        <button class="btn-primary" id="exportBtn">ดาวน์โหลด CSV</button>
+        <button class="btn-secondary" id="logoutBtn">ออกจากระบบ</button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>#</th><th>ชื่อ</th><th>อีเมล</th><th>เบอร์โทร</th><th>วันเกิด</th><th>เวลาลงทะเบียน</th><th></th></tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="empty hidden" id="empty">ยังไม่มีผู้ลงทะเบียน</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const loginView = document.getElementById('loginView');
+  const adminView = document.getElementById('adminView');
+  const tbody = document.getElementById('tbody');
+  const empty = document.getElementById('empty');
+  const countEl = document.getElementById('count');
+  const searchEl = document.getElementById('search');
+
+  let KEY = sessionStorage.getItem('admin_key') || '';
+  let records = [];
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmtTime = iso => { try { return new Date(iso).toLocaleString('th-TH'); } catch { return iso; } };
+
+  async function fetchList() {
+    const res = await fetch('/api/registrations', { headers: { 'x-admin-key': KEY } });
+    if (res.status === 401) throw new Error('unauthorized');
+    const out = await res.json();
+    return out.data || [];
+  }
+
+  function render() {
+    const q = searchEl.value.trim().toLowerCase();
+    const list = q
+      ? records.filter(r => (r.name + ' ' + r.email + ' ' + r.phone + ' ' + (r.birthdate || '')).toLowerCase().includes(q))
+      : records;
+    countEl.textContent = records.length;
+    tbody.innerHTML = '';
+    if (list.length === 0) { empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    list.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${i + 1}</td><td>${esc(r.name)}</td><td>${esc(r.email)}</td>
+        <td>${esc(r.phone)}</td><td>${esc(r.birthdate || '-')}</td><td>${esc(fmtTime(r.createdAt))}</td>
+        <td><button class="btn-del" data-id="${esc(r.id)}">ลบ</button></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function load() {
+    try {
+      records = await fetchList();
+      render();
+    } catch {
+      logout('รหัสผ่านไม่ถูกต้องหรือหมดอายุ');
+    }
+  }
+
+  function showAdmin() {
+    loginView.classList.add('hidden');
+    adminView.classList.remove('hidden');
+    load();
+  }
+  function logout(errText) {
+    KEY = '';
+    sessionStorage.removeItem('admin_key');
+    adminView.classList.add('hidden');
+    loginView.classList.remove('hidden');
+    document.getElementById('loginErr').textContent = errText || '';
+    document.getElementById('keyInput').value = '';
+  }
+
+  async function tryLogin() {
+    const val = document.getElementById('keyInput').value;
+    const errEl = document.getElementById('loginErr');
+    errEl.textContent = '';
+    const res = await fetch('/api/registrations', { headers: { 'x-admin-key': val } });
+    if (res.ok) {
+      KEY = val;
+      sessionStorage.setItem('admin_key', KEY);
+      showAdmin();
+    } else {
+      errEl.textContent = 'รหัสผ่านไม่ถูกต้อง';
+    }
+  }
+
+  document.getElementById('loginBtn').addEventListener('click', tryLogin);
+  document.getElementById('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+  document.getElementById('refreshBtn').addEventListener('click', load);
+  document.getElementById('logoutBtn').addEventListener('click', () => logout());
+  searchEl.addEventListener('input', render);
+
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    window.location.href = '/api/export.csv?key=' + encodeURIComponent(KEY);
+  });
+
+  tbody.addEventListener('click', async e => {
+    const btn = e.target.closest('.btn-del');
+    if (!btn) return;
+    const id = btn.getAttribute('data-id');
+    if (!confirm('ต้องการลบรายการนี้ใช่หรือไม่?')) return;
+    const res = await fetch('/api/registrations/' + encodeURIComponent(id), {
+      method: 'DELETE', headers: { 'x-admin-key': KEY },
+    });
+    if (res.ok) load();
+    else alert('ลบไม่สำเร็จ');
+  });
+
+  // เข้าหน้าหลังบ้านอัตโนมัติถ้ามีรหัสผ่านใน session แล้ว
+  if (KEY) showAdmin();
+</script>
+</body>
+</html>

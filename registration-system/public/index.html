@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ลงทะเบียน</title>
+<style>
+  :root {
+    --bg:#f4f5f7; --card:#fff; --primary:#2563eb; --primary-dark:#1d4ed8;
+    --text:#1f2937; --muted:#6b7280; --border:#d1d5db; --error:#dc2626; --success:#16a34a;
+  }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,"Segoe UI","Sarabun",Tahoma,sans-serif; background:var(--bg);
+    color:var(--text); margin:0; padding:32px 16px; line-height:1.5; }
+  .card { max-width:480px; margin:0 auto; background:var(--card); border-radius:14px;
+    box-shadow:0 2px 12px rgba(0,0,0,.08); padding:28px 24px; }
+  h1 { font-size:22px; margin:0 0 6px; }
+  .subtitle { color:var(--muted); margin:0 0 22px; font-size:14px; }
+  label { display:block; font-weight:600; margin-bottom:6px; font-size:14px; }
+  .req { color:var(--error); }
+  input { width:100%; padding:11px 12px; font-size:15px; border:1px solid var(--border);
+    border-radius:8px; outline:none; font-family:inherit; transition:border-color .15s; }
+  input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+  input.invalid { border-color:var(--error); }
+  .field { margin-bottom:18px; }
+  .err { color:var(--error); font-size:13px; margin-top:5px; min-height:0; }
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:8px; font-size:15px;
+    font-weight:600; padding:12px 18px; background:var(--primary); color:#fff; width:100%; }
+  button:hover { background:var(--primary-dark); }
+  button:disabled { opacity:.6; cursor:not-allowed; }
+  .msg { padding:12px 14px; border-radius:8px; font-size:14px; margin-bottom:18px; display:none; }
+  .msg.ok { background:#ecfdf5; border:1px solid #a7f3d0; color:var(--success); display:block; }
+  .msg.bad { background:#fef2f2; border:1px solid #fecaca; color:var(--error); display:block; }
+  .foot { text-align:center; margin-top:18px; font-size:13px; }
+  .foot a { color:var(--muted); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>ลงทะเบียน</h1>
+    <p class="subtitle">กรอกข้อมูลเพื่อลงทะเบียน</p>
+
+    <div class="msg" id="msg"></div>
+
+    <form id="form" novalidate>
+      <div class="field">
+        <label for="name">ชื่อ <span class="req">*</span></label>
+        <input type="text" id="name" name="name" placeholder="ชื่อ-นามสกุล" autocomplete="name">
+        <div class="err" id="err-name"></div>
+      </div>
+      <div class="field">
+        <label for="email">อีเมล <span class="req">*</span></label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email">
+        <div class="err" id="err-email"></div>
+      </div>
+      <div class="field">
+        <label for="phone">เบอร์โทร <span class="req">*</span></label>
+        <input type="tel" id="phone" name="phone" placeholder="08XXXXXXXX" autocomplete="tel">
+        <div class="err" id="err-phone"></div>
+      </div>
+      <div class="field">
+        <label for="birthdate">วันเกิด <span class="req">*</span></label>
+        <input type="date" id="birthdate" name="birthdate" autocomplete="bday">
+        <div class="err" id="err-birthdate"></div>
+      </div>
+      <button type="submit" id="submitBtn">ลงทะเบียน</button>
+    </form>
+
+    <div class="foot"><a href="/admin">เข้าสู่หน้าหลังบ้าน →</a></div>
+  </div>
+
+<script>
+  const form = document.getElementById('form');
+  const msg = document.getElementById('msg');
+  const btn = document.getElementById('submitBtn');
+
+  const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const validPhone = v => /^[0-9]{9,10}$/.test(v.replace(/[\s-]/g, ''));
+
+  function setErr(field, text) {
+    document.getElementById('err-' + field).textContent = text || '';
+    document.getElementById(field).classList.toggle('invalid', !!text);
+  }
+
+  // เช็คซ้ำกับเซิร์ฟเวอร์ตอนกรอกเสร็จ (blur)
+  async function checkDup(field) {
+    const email = form.email.value.trim();
+    const phone = form.phone.value.trim();
+    // ตรวจรูปแบบก่อน ถ้ายังไม่ถูกก็ไม่ต้องถามเซิร์ฟเวอร์
+    if (field === 'email' && !validEmail(email)) return;
+    if (field === 'phone' && !validPhone(phone)) return;
+    try {
+      const params = new URLSearchParams();
+      if (field === 'email') params.set('email', email);
+      if (field === 'phone') params.set('phone', phone);
+      const res = await fetch('/api/check?' + params.toString());
+      const out = await res.json();
+      if (field === 'email' && out.emailTaken) setErr('email', 'อีเมลนี้ลงทะเบียนไปแล้ว');
+      if (field === 'phone' && out.phoneTaken) setErr('phone', 'เบอร์โทรนี้ลงทะเบียนไปแล้ว');
+    } catch { /* ออฟไลน์: ข้ามการเช็คสด เดี๋ยวเช็คอีกครั้งตอนกดส่ง */ }
+  }
+
+  form.email.addEventListener('blur', () => checkDup('email'));
+  form.phone.addEventListener('blur', () => checkDup('phone'));
+  // พิมพ์แก้ใหม่ให้ล้าง error เดิมออกก่อน
+  form.email.addEventListener('input', () => setErr('email', ''));
+  form.phone.addEventListener('input', () => setErr('phone', ''));
+  function showMsg(text, ok) {
+    msg.textContent = text;
+    msg.className = 'msg ' + (ok ? 'ok' : 'bad');
+  }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    msg.className = 'msg';
+    const name = form.name.value.trim();
+    const email = form.email.value.trim();
+    const phone = form.phone.value.trim();
+    const birthdate = form.birthdate.value;
+
+    const today = new Date().toISOString().slice(0, 10);
+    let bad = false;
+    setErr('name', name ? '' : (bad = true, 'กรุณากรอกชื่อ'));
+    setErr('email', validEmail(email) ? '' : (bad = true, 'อีเมลไม่ถูกต้อง'));
+    setErr('phone', validPhone(phone) ? '' : (bad = true, 'เบอร์โทรต้องมี 9-10 หลัก'));
+    if (!birthdate) setErr('birthdate', (bad = true, 'กรุณาเลือกวันเกิด'));
+    else if (birthdate > today) setErr('birthdate', (bad = true, 'วันเกิดต้องไม่เกินวันนี้'));
+    else setErr('birthdate', '');
+    if (bad) return;
+
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, birthdate }),
+      });
+      const out = await res.json();
+      if (out.ok) {
+        showMsg('✓ ลงทะเบียนสำเร็จ ขอบคุณค่ะ', true);
+        form.reset();
+      } else {
+        showMsg('✗ ' + (out.error || 'ลงทะเบียนไม่สำเร็จ'), false);
+      }
+    } catch {
+      showMsg('✗ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้', false);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

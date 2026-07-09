@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แบบสอบถาม</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --border: #d1d5db;
+    --error: #dc2626;
+    --success: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Sarabun", Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 24px 16px;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  .card {
+    background: var(--card);
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    padding: 28px 24px;
+    margin-bottom: 20px;
+  }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .subtitle { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+  .required { color: var(--error); }
+  input {
+    width: 100%;
+    padding: 11px 12px;
+    font-size: 15px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+    transition: border-color .15s;
+    font-family: inherit;
+  }
+  input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .field { margin-bottom: 18px; }
+  .err { color: var(--error); font-size: 13px; margin-top: 5px; display: none; }
+  input.invalid { border-color: var(--error); }
+  input.invalid + .err { display: block; }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 12px 18px;
+    transition: background .15s;
+  }
+  .btn-primary { background: var(--primary); color: #fff; width: 100%; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .btn-secondary { background: #eef2ff; color: var(--primary-dark); }
+  .btn-secondary:hover { background: #e0e7ff; }
+  .btn-danger { background: #fef2f2; color: var(--error); }
+  .btn-danger:hover { background: #fee2e2; }
+  .banner {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: var(--success);
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 18px;
+    display: none;
+  }
+  .count { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid #eee; }
+  th { color: var(--muted); font-weight: 600; }
+  td { word-break: break-all; }
+  .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 20px 0; }
+  .table-scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>แบบสอบถาม</h1>
+    <p class="subtitle">กรุณากรอกข้อมูลของคุณด้านล่าง</p>
+
+    <div class="banner" id="banner">✓ บันทึกข้อมูลเรียบร้อยแล้ว ขอบคุณค่ะ</div>
+
+    <form id="surveyForm" novalidate>
+      <div class="field">
+        <label for="name">ชื่อ <span class="required">*</span></label>
+        <input type="text" id="name" name="name" placeholder="ชื่อ-นามสกุล" required>
+        <div class="err">กรุณากรอกชื่อ</div>
+      </div>
+
+      <div class="field">
+        <label for="email">อีเมล <span class="required">*</span></label>
+        <input type="email" id="email" name="email" placeholder="you@example.com" required>
+        <div class="err">กรุณากรอกอีเมลให้ถูกต้อง</div>
+      </div>
+
+      <div class="field">
+        <label for="phone">เบอร์โทร <span class="required">*</span></label>
+        <input type="tel" id="phone" name="phone" placeholder="08X-XXX-XXXX" required>
+        <div class="err">กรุณากรอกเบอร์โทร 9-10 หลัก</div>
+      </div>
+
+      <button type="submit" class="btn-primary">ส่งข้อมูล</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <p class="count" id="count">ยังไม่มีข้อมูล</p>
+    <div class="toolbar" style="margin-bottom:16px;">
+      <button class="btn-secondary" id="exportBtn">ดาวน์โหลด CSV</button>
+      <button class="btn-danger" id="clearBtn">ล้างข้อมูลทั้งหมด</button>
+    </div>
+    <div class="table-scroll">
+      <table id="dataTable">
+        <thead>
+          <tr><th>#</th><th>ชื่อ</th><th>อีเมล</th><th>เบอร์โทร</th><th>เวลา</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="empty" id="emptyMsg">ยังไม่มีข้อมูลที่บันทึก</p>
+  </div>
+</div>
+
+<script>
+  const KEY = 'survey_responses';
+  const form = document.getElementById('surveyForm');
+  const banner = document.getElementById('banner');
+  const tbody = document.querySelector('#dataTable tbody');
+  const emptyMsg = document.getElementById('emptyMsg');
+  const countEl = document.getElementById('count');
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; }
+    catch { return []; }
+  }
+  function save(list) { localStorage.setItem(KEY, JSON.stringify(list)); }
+
+  function validEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+  function validPhone(v) { return /^[0-9]{9,10}$/.test(v.replace(/[\s-]/g, '')); }
+
+  function showError(input, show) {
+    input.classList.toggle('invalid', show);
+  }
+
+  function render() {
+    const list = load();
+    tbody.innerHTML = '';
+    if (list.length === 0) {
+      emptyMsg.style.display = 'block';
+      countEl.textContent = 'ยังไม่มีข้อมูล';
+      return;
+    }
+    emptyMsg.style.display = 'none';
+    countEl.textContent = 'จำนวนข้อมูลที่บันทึก: ' + list.length + ' รายการ';
+    list.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${i + 1}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td>${escapeHtml(r.email)}</td>
+        <td>${escapeHtml(r.phone)}</td>
+        <td>${escapeHtml(r.time)}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const name = form.name.value.trim();
+    const email = form.email.value.trim();
+    const phone = form.phone.value.trim();
+
+    const okName = name.length > 0;
+    const okEmail = validEmail(email);
+    const okPhone = validPhone(phone);
+
+    showError(form.name, !okName);
+    showError(form.email, !okEmail);
+    showError(form.phone, !okPhone);
+
+    if (!okName || !okEmail || !okPhone) return;
+
+    const list = load();
+    list.push({
+      name, email, phone,
+      time: new Date().toLocaleString('th-TH')
+    });
+    save(list);
+    render();
+
+    form.reset();
+    banner.style.display = 'block';
+    setTimeout(() => { banner.style.display = 'none'; }, 3000);
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', function () {
+    const list = load();
+    if (list.length === 0) { alert('ยังไม่มีข้อมูลให้ดาวน์โหลด'); return; }
+    const header = ['ชื่อ', 'อีเมล', 'เบอร์โทร', 'เวลา'];
+    const rows = list.map(r => [r.name, r.email, r.phone, r.time]);
+    const csv = [header, ...rows]
+      .map(row => row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(','))
+      .join('\r\n');
+    // BOM เพื่อให้ Excel อ่านภาษาไทยได้ถูกต้อง
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'survey_responses.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', function () {
+    if (!confirm('ต้องการลบข้อมูลทั้งหมดใช่หรือไม่? การลบไม่สามารถกู้คืนได้')) return;
+    localStorage.removeItem(KEY);
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>

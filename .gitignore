@@ -1,0 +1,9 @@
+# Claude Code local settings
+.claude/settings.local.json
+
+# ข้อมูลผู้ลงทะเบียน (ข้อมูลส่วนบุคคล — ไม่ควรขึ้น git)
+registration-system/data/*.json
+
+# Node
+node_modules/
+npm-debug.log*
