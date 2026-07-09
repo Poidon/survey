@@ -1,0 +1,12 @@
+{
+  "name": "registration-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ระบบลงทะเบียน เก็บชื่อ อีเมล เบอร์โทร วันเกิด พร้อมหน้าหลังบ้าน",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
