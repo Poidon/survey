@@ -32,6 +32,12 @@ function validBirthdate(v) {
 const normPhone = s => String(s).replace(/[\s-]/g, '');
 const GENDERS = ['ชาย', 'หญิง', 'อื่นๆ', 'ไม่ระบุ'];
 function validGender(v) { return GENDERS.includes(v); }
+const MAX_PHOTO_LEN = 8_000_000; // จำกัดขนาด data URL ของรูป (~8MB)
+function validPhoto(v) {
+  return typeof v === 'string'
+    && /^data:image\/(jpeg|png|webp);base64,/.test(v)
+    && v.length <= MAX_PHOTO_LEN;
+}
 
 // ---------- ชั้นเก็บข้อมูล: PostgreSQL ----------
 function createPgStore(url) {
@@ -44,7 +50,7 @@ function createPgStore(url) {
 
   const mapRow = r => ({
     id: r.id, name: r.name, email: r.email, phone: r.phone,
-    gender: r.gender, birthdate: r.birthdate,
+    gender: r.gender, birthdate: r.birthdate, hasPhoto: !!r.has_photo,
     createdAt: (r.created_at instanceof Date) ? r.created_at.toISOString() : r.created_at,
   });
 
@@ -59,10 +65,12 @@ function createPgStore(url) {
           phone_norm TEXT NOT NULL,
           gender     TEXT,
           birthdate  TEXT NOT NULL,
+          photo      TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )`);
-      // เผื่อตารางเก่ายังไม่มีคอลัมน์ gender (เพิ่มภายหลัง)
+      // เผื่อตารางเก่ายังไม่มีคอลัมน์ที่เพิ่มภายหลัง
       await pool.query(`ALTER TABLE registrations ADD COLUMN IF NOT EXISTS gender TEXT`);
+      await pool.query(`ALTER TABLE registrations ADD COLUMN IF NOT EXISTS photo TEXT`);
       // กันซ้ำระดับฐานข้อมูล (กันกรณีลงทะเบียนพร้อมกัน)
       await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_reg_email
         ON registrations (lower(email))`);
@@ -70,10 +78,16 @@ function createPgStore(url) {
         ON registrations (phone_norm)`);
     },
     async all() {
+      // ไม่ดึงคอลัมน์ photo (ก้อนใหญ่) มาในลิสต์ ใช้แค่ว่ามีรูปไหม
       const { rows } = await pool.query(
-        `SELECT id, name, email, phone, gender, birthdate, created_at
+        `SELECT id, name, email, phone, gender, birthdate, created_at,
+                (photo IS NOT NULL) AS has_photo
            FROM registrations ORDER BY created_at ASC`);
       return rows.map(mapRow);
+    },
+    async getPhoto(id) {
+      const { rows } = await pool.query(`SELECT photo FROM registrations WHERE id=$1`, [id]);
+      return rows[0] ? rows[0].photo : null;
     },
     async emailExists(email) {
       const { rows } = await pool.query(
@@ -87,9 +101,9 @@ function createPgStore(url) {
     },
     async insert(rec) {
       await pool.query(
-        `INSERT INTO registrations (id, name, email, phone, phone_norm, gender, birthdate, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [rec.id, rec.name, rec.email, rec.phone, normPhone(rec.phone), rec.gender, rec.birthdate, rec.createdAt]);
+        `INSERT INTO registrations (id, name, email, phone, phone_norm, gender, birthdate, photo, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [rec.id, rec.name, rec.email, rec.phone, normPhone(rec.phone), rec.gender, rec.birthdate, rec.photo || null, rec.createdAt]);
     },
     async remove(id) {
       await pool.query(`DELETE FROM registrations WHERE id=$1`, [id]);
@@ -109,7 +123,11 @@ function createFileStore() {
   function write(list) { fs.writeFileSync(DATA_FILE, JSON.stringify(list, null, 2), 'utf8'); }
   return {
     async init() { ensure(); },
-    async all() { return read(); },
+    async all() {
+      // ไม่ส่งก้อนรูป (photo) มาในลิสต์ ใช้แค่ธง hasPhoto
+      return read().map(({ photo, ...rest }) => ({ ...rest, hasPhoto: !!photo }));
+    },
+    async getPhoto(id) { const r = read().find(x => x.id === id); return r ? (r.photo || null) : null; },
     async emailExists(email) { return read().some(r => r.email.toLowerCase() === email.toLowerCase()); },
     async phoneExists(phone) { return read().some(r => normPhone(r.phone) === normPhone(phone)); },
     async insert(rec) { const l = read(); l.push(rec); write(l); },
@@ -129,7 +147,7 @@ function readBody(req) {
     let data = '';
     req.on('data', c => {
       data += c;
-      if (data.length > 1e6) { reject(new Error('payload too large')); req.destroy(); }
+      if (data.length > 12e6) { reject(new Error('payload too large')); req.destroy(); }
     });
     req.on('end', () => resolve(data));
     req.on('error', reject);
@@ -165,19 +183,21 @@ const server = http.createServer(async (req, res) => {
       const phone = String(data.phone || '').trim();
       const gender = String(data.gender || '').trim();
       const birthdate = String(data.birthdate || '').trim();
+      const photo = typeof data.photo === 'string' ? data.photo : '';
 
       if (!name) return sendJson(res, 400, { ok: false, error: 'กรุณากรอกชื่อ' });
       if (!validEmail(email)) return sendJson(res, 400, { ok: false, error: 'อีเมลไม่ถูกต้อง' });
       if (!validPhone(phone)) return sendJson(res, 400, { ok: false, error: 'เบอร์โทรไม่ถูกต้อง (9-10 หลัก)' });
       if (!validGender(gender)) return sendJson(res, 400, { ok: false, error: 'กรุณาเลือกเพศ' });
       if (!validBirthdate(birthdate)) return sendJson(res, 400, { ok: false, error: 'วันเกิดไม่ถูกต้อง' });
+      if (!validPhoto(photo)) return sendJson(res, 400, { ok: false, error: 'กรุณาถ่าย/เลือกภาพ (รองรับ jpg/png/webp และไม่เกิน 8MB)' });
 
       if (await store.emailExists(email)) return sendJson(res, 409, { ok: false, error: 'อีเมลนี้ลงทะเบียนไปแล้ว' });
       if (await store.phoneExists(phone)) return sendJson(res, 409, { ok: false, error: 'เบอร์โทรนี้ลงทะเบียนไปแล้ว' });
 
       const record = {
         id: Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36),
-        name, email, phone, gender, birthdate,
+        name, email, phone, gender, birthdate, photo,
         createdAt: new Date().toISOString(),
       };
       try {
@@ -215,14 +235,27 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true, total });
     }
 
+    // --- รูปภาพของผู้ลงทะเบียน (ต้องมีรหัสผ่าน) ---
+    if (req.method === 'GET' && p.startsWith('/api/photo/')) {
+      if (!isAuthed(req, url)) { res.writeHead(401); res.end('unauthorized'); return; }
+      const id = decodeURIComponent(p.split('/').pop());
+      const dataUrl = await store.getPhoto(id);
+      const m = dataUrl && /^data:(image\/[a-z]+);base64,(.*)$/s.exec(dataUrl);
+      if (!m) { res.writeHead(404); res.end('not found'); return; }
+      const buf = Buffer.from(m[2], 'base64');
+      res.writeHead(200, { 'Content-Type': m[1], 'Cache-Control': 'private, max-age=300' });
+      res.end(buf);
+      return;
+    }
+
     // --- ดาวน์โหลด CSV (ต้องมีรหัสผ่าน) ---
     if (req.method === 'GET' && p === '/api/export.csv') {
       if (!isAuthed(req, url)) { res.writeHead(401); res.end('unauthorized'); return; }
       const list = await store.all();
-      const header = ['ลำดับ', 'ชื่อ', 'อีเมล', 'เบอร์โทร', 'เพศ', 'วันเกิด', 'เวลาลงทะเบียน'];
+      const header = ['ลำดับ', 'ชื่อ', 'อีเมล', 'เบอร์โทร', 'เพศ', 'วันเกิด', 'ภาพถ่าย', 'เวลาลงทะเบียน'];
       const rows = list.map((r, i) => [
         i + 1, r.name, r.email, r.phone, r.gender || '', r.birthdate || '',
-        new Date(r.createdAt).toLocaleString('th-TH'),
+        r.hasPhoto ? 'มี' : '', new Date(r.createdAt).toLocaleString('th-TH'),
       ]);
       const csv = [header, ...rows].map(row => row.map(csvEscape).join(',')).join('\r\n');
       res.writeHead(200, {
